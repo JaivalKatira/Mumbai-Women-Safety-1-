@@ -20,23 +20,54 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────
-# CUSTOM CSS – DARK THEME
+# THEME STATE
 # ─────────────────────────────────────────────
-st.markdown("""
-<style>
-/* ── Global dark background ── */
-html, body, [data-testid="stAppViewContainer"] {
-    background-color: #0e1117 !important;
-    color: #e0e0e0 !important;
-}
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #141a24 0%, #1a2232 100%) !important;
-    border-right: 1px solid #2a3550 !important;
-}
-[data-testid="stSidebar"] * { color: #c9d1e0 !important; }
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
 
-/* ── Main title ── */
-.main-title {
+DARK = st.session_state.dark_mode
+
+if DARK:
+    BG       = "#0e1117"
+    SIDEBAR  = "linear-gradient(180deg, #141a24 0%, #1a2232 100%)"
+    SIDE_BRD = "#2a3550"
+    SIDE_CLR = "#c9d1e0"
+    CARD_BG  = "linear-gradient(135deg, #1a2232 0%, #1e293b 100%)"
+    CARD_BRD = "#2a3550"
+    TXT      = "#e0e0e0"
+    SUBTXT   = "#7a8899"
+    HDRTXT   = "#4fc3f7"
+    MAP_TILE = "CartoDB dark_matter"
+    TOGGLE_LABEL = "☀️ Light Mode"
+else:
+    BG       = "#f0f2f6"
+    SIDEBAR  = "linear-gradient(180deg, #ffffff 0%, #e8edf5 100%)"
+    SIDE_BRD = "#c8d0e0"
+    SIDE_CLR = "#1a2232"
+    CARD_BG  = "linear-gradient(135deg, #ffffff 0%, #f0f4fa 100%)"
+    CARD_BRD = "#c8d0e0"
+    TXT      = "#1a2232"
+    SUBTXT   = "#5a6880"
+    HDRTXT   = "#1565c0"
+    MAP_TILE = "CartoDB positron"
+    TOGGLE_LABEL = "🌙 Dark Mode"
+
+# ─────────────────────────────────────────────
+# CUSTOM CSS
+# ─────────────────────────────────────────────
+st.markdown(f"""
+<style>
+html, body, [data-testid="stAppViewContainer"] {{
+    background-color: {BG} !important;
+    color: {TXT} !important;
+}}
+[data-testid="stSidebar"] {{
+    background: {SIDEBAR} !important;
+    border-right: 1px solid {SIDE_BRD} !important;
+}}
+[data-testid="stSidebar"] * {{ color: {SIDE_CLR} !important; }}
+
+.main-title {{
     text-align: center;
     font-size: 2.1rem;
     font-weight: 800;
@@ -45,76 +76,51 @@ html, body, [data-testid="stAppViewContainer"] {
     -webkit-text-fill-color: transparent;
     margin-bottom: 0.2rem;
     letter-spacing: -0.5px;
-}
-.sub-title {
+}}
+.sub-title {{
     text-align: center;
-    color: #7a8899;
+    color: {SUBTXT};
     font-size: 0.9rem;
     margin-bottom: 1.5rem;
-}
+}}
 
-/* ── Metric cards ── */
-.metric-row { display: flex; gap: 12px; margin-bottom: 16px; }
-.metric-card {
+.metric-row {{ display: flex; gap: 12px; margin-bottom: 16px; }}
+.metric-card {{
     flex: 1;
-    background: linear-gradient(135deg, #1a2232 0%, #1e293b 100%);
-    border: 1px solid #2a3550;
+    background: {CARD_BG};
+    border: 1px solid {CARD_BRD};
     border-radius: 12px;
     padding: 16px 20px;
     text-align: center;
-}
-.metric-card .val { font-size: 1.9rem; font-weight: 800; }
-.metric-card .lbl { font-size: 0.75rem; color: #7a8899; margin-top: 4px; }
-.red   { color: #ff4d4d; }
-.amber { color: #ff9900; }
-.green { color: #00e676; }
-.blue  { color: #4fc3f7; }
+}}
+.metric-card .val {{ font-size: 1.9rem; font-weight: 800; }}
+.metric-card .lbl {{ font-size: 0.75rem; color: {SUBTXT}; margin-top: 4px; }}
+.red   {{ color: #ff4d4d; }}
+.amber {{ color: #ff9900; }}
+.green {{ color: #00e676; }}
+.blue  {{ color: #4fc3f7; }}
 
-/* ── Legend ── */
-.legend-box {
-    background: #141a24;
-    border: 1px solid #2a3550;
-    border-radius: 10px;
-    padding: 14px 18px;
-    margin-top: 10px;
-    font-size: 0.82rem;
-}
-.legend-box h4 { color: #c9d1e0; margin: 0 0 8px 0; font-size: 0.88rem; }
-.leg-row { display: flex; align-items: center; gap: 10px; margin: 5px 0; }
-.dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
-
-/* ── Section headers ── */
-.section-hdr {
+.section-hdr {{
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 1.5px;
-    color: #4fc3f7;
+    color: {HDRTXT};
     margin: 18px 0 8px 0;
     font-weight: 700;
-}
+}}
 
-/* ── Data table ── */
-.stDataFrame { border-radius: 10px; overflow: hidden; }
-
-/* ── Sidebar sliders ── */
-[data-testid="stSlider"] .stSlider { accent-color: #4fc3f7; }
-
-/* ── Streamlit Selectbox ── */
-[data-testid="stSelectbox"] select { background: #1a2232; color: #e0e0e0; }
-
-/* ── Hide Streamlit branding ── */
-#MainMenu, footer, header { visibility: hidden; }
-.block-container { padding-top: 1.5rem !important; }
+.stDataFrame {{ border-radius: 10px; overflow: hidden; }}
+[data-testid="stSlider"] .stSlider {{ accent-color: #4fc3f7; }}
+[data-testid="stSelectbox"] select {{ background: #1a2232; color: #e0e0e0; }}
+#MainMenu, footer, header {{ visibility: hidden; }}
+.block-container {{ padding-top: 1.5rem !important; }}
 </style>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
 # HARDCODED COORDINATES  (Mumbai localities)
-# Built from OSM / known coordinates for 538 entries
-# Falls back to zone-based jitter for unknown names
 # ─────────────────────────────────────────────
 KNOWN_COORDS = {
-    # Andheri belt
     "Andheri": (19.1136, 72.8697),
     "Aram Nagar": (19.1219, 72.8432),
     "Amboli": (19.1260, 72.8340),
@@ -133,7 +139,6 @@ KNOWN_COORDS = {
     "Versova": (19.1316, 72.8130),
     "SEEPZ": (19.1108, 72.8714),
     "Sahar": (19.0985, 72.8645),
-    # Bandra belt
     "Bandra": (19.0544, 72.8402),
     "Bandra Kurla Complex": (19.0653, 72.8644),
     "Bandstand Promenade": (19.0465, 72.8204),
@@ -166,7 +171,6 @@ KNOWN_COORDS = {
     "Hill Road": (19.0512, 72.8264),
     "Vastu": (19.0538, 72.8310),
     "Galaxy Apartment": (19.0526, 72.8296),
-    # Borivali / Dahisar
     "Borivali": (19.2290, 72.8567),
     "I.C. Colony": (19.2264, 72.8555),
     "L.I.C. Colony aka Jeevan Bhima Nagar": (19.2274, 72.8565),
@@ -205,7 +209,6 @@ KNOWN_COORDS = {
     "Gavde Nagar": (19.2358, 72.8602),
     "Navagaon": (19.2372, 72.8614),
     "Mhatre Wadi Tadwe Wadi": (19.2364, 72.8606),
-    # Goregaon belt
     "Goregaon": (19.1663, 72.8526),
     "Best Nagar": (19.1645, 72.8512),
     "Jawahar Nagar": (19.1655, 72.8520),
@@ -244,7 +247,6 @@ KNOWN_COORDS = {
     "Pratap Nagar": (19.1640, 72.8512),
     "Sunder Nagar": (19.1632, 72.8504),
     "Jijamata Colony": (19.1660, 72.8522),
-    # Kandivali / Malad belt
     "Kandivali": (19.2077, 72.8427),
     "Dahanukarwadi": (19.2055, 72.8415),
     "BunderPakhadi (Koliwada)": (19.2065, 72.8435),
@@ -264,7 +266,6 @@ KNOWN_COORDS = {
     "Jivali Pada": (19.2056, 72.8408),
     "Malad": (19.1864, 72.8485),
     "Dindoshi": (19.1825, 72.8465),
-    "Sunder Nagar": (19.1835, 72.8468),
     "Pathanwadi": (19.1848, 72.8478),
     "Malvani": (19.1915, 72.8202),
     "Orlem": (19.1852, 72.8490),
@@ -272,12 +273,10 @@ KNOWN_COORDS = {
     "Evershine Nagar": (19.1845, 72.8480),
     "Liliya Nagar": (19.1862, 72.8488),
     "Jankalyan Nagar": (19.1840, 72.8475),
-    # Santacruz / Vakola / Vile Parle
     "Santacruz": (19.0786, 72.8394),
     "Kalina": (19.0765, 72.8562),
     "Vakola": (19.0775, 72.8448),
     "Prabhat colony": (19.0792, 72.8372),
-    "Anand Nagar": (19.0802, 72.8380),
     "Vile Parle": (19.0990, 72.8474),
     "Irla": (19.1015, 72.8388),
     "Nehru Nagar": (19.1025, 72.8395),
@@ -287,19 +286,12 @@ KNOWN_COORDS = {
     "Yashwant Nagar": (19.0815, 72.8472),
     "Khira Nagar": (19.0818, 72.8476),
     "Eastern suburbs": (19.0982, 72.8878),
-    # Juhu
     "Juhu": (19.1075, 72.8263),
-    "Santosh Nagar": (19.0658, 72.8496),
-    # Khar / Santa Cruz West
     "Khar": (19.0665, 72.8342),
     "Pali Naka": (19.0658, 72.8350),
     "Khar Danda": (19.0615, 72.8222),
-    # Bhandup / Mulund
     "Bhandup": (19.1459, 72.9364),
     "Shivaji Talav": (19.1465, 72.9368),
-    "Hanuman Nagar": (19.1458, 72.9360),
-    "Pratap Nagar": (19.1452, 72.9355),
-    "Amrut Nagar": (19.1462, 72.9366),
     "Asalfa": (19.1448, 72.9352),
     "Garodia Nagar": (19.1442, 72.9348),
     "Jagdusha Nagar": (19.1468, 72.9372),
@@ -311,7 +303,6 @@ KNOWN_COORDS = {
     "Xavier Street": (19.1718, 72.9564),
     "Nahur": (19.1492, 72.9348),
     "Mulund Runwals": (19.1740, 72.9578),
-    # Powai / Chandivali / Hiranandani
     "Powai": (19.1197, 72.9076),
     "Chandivali": (19.1168, 72.9016),
     "Hiranandani Gardens": (19.1172, 72.9062),
@@ -324,14 +315,8 @@ KNOWN_COORDS = {
     "Pipeline Road": (19.1178, 72.8965),
     "Kirol": (19.1172, 72.8962),
     "Khalai": (19.1188, 72.8975),
-    # Ghatkopar / Kurla belt
     "Ghatkopar": (19.0858, 72.9081),
-    "Amrut Nagar": (19.0862, 72.9085),
-    "Asalfa": (19.0855, 72.9078),
-    "Garodia Nagar": (19.0852, 72.9075),
-    "Jagdusha Nagar": (19.0865, 72.9088),
     "Kurla": (19.0728, 72.8826),
-    "Nehru Nagar": (19.0745, 72.8842),
     "Kasaiwada": (19.0748, 72.8845),
     "Quresh Nagar": (19.0755, 72.8852),
     "Tashilanagar": (19.0752, 72.8848),
@@ -379,17 +364,13 @@ KNOWN_COORDS = {
     "Bharti Nagar": (19.0758, 72.8848),
     "Mubarak complex": (19.0762, 72.8852),
     "9 number": (19.0768, 72.8858),
-    "Lal Taki": (19.0772, 72.8862),
     "Teacher's Colony": (19.0778, 72.8868),
     "Kamaani": (19.0782, 72.8872),
-    "Kadam Nagar": (19.0788, 72.8878),
     "Huzoor Tajushsharia Chowk": (19.0795, 72.8885),
     "Father Peter Pereira Chowk": (19.0802, 72.8892),
     "\"L\" Ward": (19.0808, 72.8898),
-    # Vikhroli / Kanjur
     "Vikhroli": (19.1088, 72.9288),
     "Kanjur Marg": (19.1148, 72.9348),
-    "Gandhi Nagar": (19.1142, 72.9342),
     "Surya Nagar": (19.1135, 72.9335),
     "Kannamwar Nagar": (19.1128, 72.9328),
     "Tagore Nagar": (19.1122, 72.9322),
@@ -398,7 +379,6 @@ KNOWN_COORDS = {
     "Godrej Hillside Colony": (19.1102, 72.9302),
     "Godrej Creek": (19.1095, 72.9295),
     "Central suburbs": (19.1088, 72.9288),
-    # Chembur
     "Chembur": (19.0622, 72.9005),
     "Chembur Causeway": (19.0615, 72.8998),
     "Union Park": (19.0628, 72.9012),
@@ -409,7 +389,6 @@ KNOWN_COORDS = {
     "Chembur Camp": (19.0662, 72.9045),
     "Ghatla village": (19.0668, 72.9052),
     "Borla village": (19.0675, 72.9058),
-    "Subhash Nagar": (19.0682, 72.9065),
     "Tilak Nagar": (19.0688, 72.9072),
     "New Tilak Nagar": (19.0695, 72.9078),
     "Mahul": (19.0702, 72.9085),
@@ -424,17 +403,14 @@ KNOWN_COORDS = {
     "BPCL": (19.0748, 72.9132),
     "RCF": (19.0755, 72.9138),
     "C.G.S. colony": (19.0762, 72.9145),
-    "Sahakar Nagar": (19.0768, 72.9152),
     "Indian Oil Nagar": (19.0775, 72.9158),
     "Sahyadri Nagar": (19.0782, 72.9165),
     "Sarvoday Nagar": (19.0788, 72.9172),
-    # Govandi / Mankhurd / Deonar
     "Govandi": (19.0532, 72.9188),
     "Mankhurd": (19.0445, 72.9282),
     "Mandala": (19.0452, 72.9288),
     "Deonar": (19.0532, 72.9148),
     "Baiganwadi": (19.0538, 72.9155),
-    "Shivaji Nagar": (19.0545, 72.9162),
     "Lallubhai Compound": (19.0552, 72.9168),
     "Gautam Nagar": (19.0558, 72.9175),
     "Cheetah Camp": (19.0452, 72.9228),
@@ -449,12 +425,10 @@ KNOWN_COORDS = {
     "Chedda Nagar": (19.0518, 72.9298),
     "Patel Estate": (19.0525, 72.9305),
     "Chunabhatti": (19.0558, 72.9138),
-    "Mahul": (19.0565, 72.9145),
     "BSNL Colony": (19.0572, 72.9152),
     "Sangam Nagar": (19.0578, 72.9158),
     "Wadala": (19.0192, 72.8582),
     "BPT Colony": (19.0198, 72.8588),
-    "Sahakar Nagar": (19.0205, 72.8595),
     "Kidwai Nagar": (19.0212, 72.8602),
     "Antop Hill": (19.0218, 72.8608),
     "Dharavi": (19.0378, 72.8534),
@@ -469,7 +443,6 @@ KNOWN_COORDS = {
     "New Agripada": (18.9665, 72.8235),
     "Chaitanya Nagar": (18.9672, 72.8242),
     "Davri Nagar": (18.9678, 72.8248),
-    "Shivaji Nagar": (18.9685, 72.8255),
     "Vakola Pipeline": (19.0778, 72.8468),
     "South Mumbai": (18.9388, 72.8355),
     "Chinchpokli": (18.9848, 72.8328),
@@ -522,7 +495,6 @@ KNOWN_COORDS = {
     "Cotton Green": (18.9578, 72.8568),
     "Lalbaug": (18.9978, 72.8358),
     "Sion": (19.0388, 72.8638),
-    "Chunabhatti": (19.0458, 72.8648),
     "Tardeo": (18.9718, 72.8198),
     "Gowalia Tank": (18.9648, 72.8128),
     "Altamount Road": (18.9658, 72.8058),
@@ -531,20 +503,14 @@ KNOWN_COORDS = {
     "Dongri": (18.9552, 72.8318),
     "Prabhat Nagar": (18.9558, 72.8325),
     "Sayad colony": (18.9562, 72.8328),
-    "Walkeshwar": (18.9462, 72.7998),
-    "Malabar Hill": (18.9558, 72.7958),
-    "Juhu": (19.1075, 72.8263),
-    "Powai": (19.1197, 72.9076),
     "IIT Bombay campus": (19.1335, 72.9145),
     "Indian Institute of Technology Bombay campus": (19.1335, 72.9145),
     "Nitie": (19.1265, 72.9198),
     "JVLR": (19.1215, 72.8875),
     "WEH Western Express Highway": (19.1125, 72.8765),
-    "Aarey Milk Colony": (19.1786, 72.8779),
     "Other": (19.0760, 72.8777),
 }
 
-# Zone-based fallback centres (broad area lookup)
 ZONE_COORDS = {
     "andheri": (19.1136, 72.8697),
     "bandra": (19.0544, 72.8402),
@@ -601,17 +567,14 @@ ZONE_COORDS = {
 np.random.seed(42)
 
 def get_coords(locality: str):
-    """Return (lat, lon) for a locality name."""
     if locality in KNOWN_COORDS:
         return KNOWN_COORDS[locality]
     loc_l = locality.lower()
     for key, coords in ZONE_COORDS.items():
         if key in loc_l:
-            # jitter so overlapping pins are visible
             jitter_lat = np.random.uniform(-0.012, 0.012)
             jitter_lon = np.random.uniform(-0.012, 0.012)
             return (coords[0] + jitter_lat, coords[1] + jitter_lon)
-    # fallback: random point inside Mumbai bounding box
     return (
         np.random.uniform(18.89, 19.27),
         np.random.uniform(72.78, 72.98),
@@ -734,6 +697,7 @@ def classify(risk):
 
 # ─────────────────────────────────────────────
 # MAP BUILDER
+# CHANGE 1: CircleMarker block removed – heatmap fades only
 # ─────────────────────────────────────────────
 def build_map(df, show_high, show_med, show_low, selected_locality=None):
     focus_lat, focus_lon, zoom = 19.076, 72.877, 11
@@ -748,7 +712,7 @@ def build_map(df, show_high, show_med, show_low, selected_locality=None):
     m = folium.Map(
         location=[focus_lat, focus_lon],
         zoom_start=zoom,
-        tiles="CartoDB dark_matter",
+        tiles=MAP_TILE,
         prefer_canvas=True,
     )
 
@@ -770,7 +734,6 @@ def build_map(df, show_high, show_med, show_low, selected_locality=None):
         else:
             low_pts.append(pt)
 
-    # ── Heatmap layers ──────────────────────────
     heat_cfg = dict(
         min_opacity=0.35,
         max_zoom=16,
@@ -802,48 +765,6 @@ def build_map(df, show_high, show_med, show_low, selected_locality=None):
             **heat_cfg,
         ).add_to(m)
 
-    # ── Circle markers with tooltips ─────────────
-    for _, row in df.iterrows():
-        cat = classify(row["risk_index"])
-        if cat == "high" and not show_high:
-            continue
-        if cat == "medium" and not show_med:
-            continue
-        if cat == "low" and not show_low:
-            continue
-
-        color = {"high": "#ff4444", "medium": "#ffaa00", "low": "#00e676"}[cat]
-        r = 6 if selected_locality and row["locality"] == selected_locality else 4
-
-        popup_html = f"""
-        <div style="background:#1a2232;color:#e0e0e0;padding:12px 16px;border-radius:8px;
-                    font-family:sans-serif;min-width:200px;border:1px solid {color}">
-          <b style="font-size:1rem;color:{color}">{row['locality']}</b><br>
-          <hr style="border-color:#2a3550;margin:6px 0">
-          <span style="color:#aaa">Risk Index:</span>
-          <b style="color:{color}">{row['risk_index']:.2f}</b><br>
-          <span style="color:#aaa">Crimes vs Women:</span>
-          <b>{int(row['crimes_women'])}</b><br>
-          <span style="color:#aaa">Police Density:</span>
-          <b>{row['police_density']:.2f}</b><br>
-          <span style="color:#aaa">Total Crimes:</span>
-          <b>{int(row['total_crimes'])}</b><br>
-          <span style="color:#aaa">Population:</span>
-          <b>{int(row['population']):,}</b>
-        </div>
-        """
-
-        folium.CircleMarker(
-            location=[row["lat"], row["lon"]],
-            radius=r,
-            color=color,
-            fill=True,
-            fill_color=color,
-            fill_opacity=0.7,
-            popup=folium.Popup(popup_html, max_width=260),
-            tooltip=f"{row['locality']} | Risk: {row['risk_index']:.1f}",
-        ).add_to(m)
-
     folium.LayerControl(collapsed=False).add_to(m)
     return m
 
@@ -854,7 +775,6 @@ init_db()
 if not os.path.exists(DB_PATH) or os.path.getsize(DB_PATH) < 5000:
     load_csv_to_db("data.csv")
 
-# first-run seed
 conn_check = sqlite3.connect(DB_PATH)
 count = conn_check.execute("SELECT COUNT(*) FROM localities").fetchone()[0]
 conn_check.close()
@@ -862,10 +782,18 @@ if count == 0:
     load_csv_to_db("data.csv")
 
 # ─────────────────────────────────────────────
-# HEADER
+# HEADER + DARK/LIGHT TOGGLE
+# CHANGE 2: toggle button placed top-right of title
 # ─────────────────────────────────────────────
-st.markdown('<div class="main-title">🛡️ Mumbai Women Safety Risk Map</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Interactive locality-wise safety visualization · Live data · Dark mode</div>', unsafe_allow_html=True)
+title_col, toggle_col = st.columns([5, 1])
+with title_col:
+    st.markdown('<div class="main-title">🛡️ Mumbai Women Safety Risk Map</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">Interactive locality-wise safety visualization · Live data · Dark mode</div>', unsafe_allow_html=True)
+with toggle_col:
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button(TOGGLE_LABEL, use_container_width=True):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+        st.rerun()
 
 # ─────────────────────────────────────────────
 # SIDEBAR
@@ -958,7 +886,8 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
-# MAP + LEGEND  (left col) |  TABLE (right col)
+# MAP (left) | TABLE (right)
+# CHANGE 3: bottom legend box removed entirely
 # ─────────────────────────────────────────────
 col_map, col_data = st.columns([2.6, 1], gap="medium")
 
@@ -968,28 +897,7 @@ with col_map:
     else:
         m = build_map(df_filtered, show_high, show_med, show_low, selected_loc)
         st_folium(m, width=None, height=580, returned_objects=[])
-
-    # Legend
-    st.markdown("""
-    <div class="legend-box">
-      <h4>🗺️ Map Legend</h4>
-      <div class="leg-row">
-        <div class="dot" style="background:#ff4444"></div>
-        <span><b style="color:#ff4444">High Risk</b> — Risk Index ≥ 15</span>
-      </div>
-      <div class="leg-row">
-        <div class="dot" style="background:#ffaa00"></div>
-        <span><b style="color:#ffaa00">Medium Risk</b> — Risk Index 7–15</span>
-      </div>
-      <div class="leg-row">
-        <div class="dot" style="background:#00e676"></div>
-        <span><b style="color:#00e676">Safe Zones</b> — Risk Index &lt; 7</span>
-      </div>
-      <div style="margin-top:8px;color:#7a8899;font-size:0.78rem">
-        Hover over a marker for details · Click for full info panel
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Legend removed — LayerControl on the map itself acts as legend
 
 with col_data:
     st.markdown('<div class="section-hdr">Top 25 Riskiest Localities</div>', unsafe_allow_html=True)
@@ -1027,7 +935,6 @@ c1, c2, c3 = st.columns(3)
 
 with c1:
     st.markdown("**Risk Distribution**")
-    import streamlit as st
     counts = pd.DataFrame({
         "Zone": ["🔴 High (≥15)", "🟡 Medium (7-15)", "🟢 Safe (<7)"],
         "Count": [n_high, n_med, n_low]
