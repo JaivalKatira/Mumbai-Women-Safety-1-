@@ -1309,7 +1309,7 @@ with col_data:
         return "color: #00e676"
 
     st.dataframe(
-        top25.style.map(color_risk, subset=["Risk"])
+        top25.style.applymap(color_risk, subset=["Risk"])
             .format({"Risk": "{:.1f}", "Police/km²": "{:.2f}"}),
         use_container_width=True,
         height=480,
@@ -1370,3 +1370,4 @@ st.markdown("""
   Mumbai Women Safety Risk Map · Data sourced from civic safety dataset · Built with Streamlit + Folium
 </div>
 """, unsafe_allow_html=True)
+
