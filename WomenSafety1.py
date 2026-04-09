@@ -5,9 +5,9 @@ import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
 import sqlite3
-import json
 import os
 from datetime import datetime
+from math import radians, sin, cos, sqrt, atan2
 
 # ─────────────────────────────────────────────
 # PAGE CONFIG
@@ -24,6 +24,16 @@ st.set_page_config(
 # ─────────────────────────────────────────────
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
+
+# [NEW] Session state for user location & emergency
+if "user_lat" not in st.session_state:
+    st.session_state.user_lat = None
+if "user_lon" not in st.session_state:
+    st.session_state.user_lon = None
+if "emergency_active" not in st.session_state:
+    st.session_state.emergency_active = False
+if "location_error" not in st.session_state:
+    st.session_state.location_error = None
 
 DARK = st.session_state.dark_mode
 
@@ -53,7 +63,7 @@ else:
     TOGGLE_LABEL = "🌙 Dark Mode"
 
 # ─────────────────────────────────────────────
-# CUSTOM CSS
+# CUSTOM CSS  [MODIFIED: added emergency styles]
 # ─────────────────────────────────────────────
 st.markdown(f"""
 <style>
@@ -109,9 +119,61 @@ html, body, [data-testid="stAppViewContainer"] {{
     font-weight: 700;
 }}
 
+/* [NEW] Emergency panel */
+.emergency-panel {{
+    background: linear-gradient(135deg, #3d0000 0%, #660000 100%);
+    border: 2px solid #ff4444;
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin: 12px 0;
+    animation: pulse-border 1.5s infinite;
+}}
+@keyframes pulse-border {{
+    0%   {{ border-color: #ff4444; box-shadow: 0 0 0 0 rgba(255,68,68,0.5); }}
+    50%  {{ border-color: #ff9999; box-shadow: 0 0 0 8px rgba(255,68,68,0); }}
+    100% {{ border-color: #ff4444; box-shadow: 0 0 0 0 rgba(255,68,68,0); }}
+}}
+.emergency-title {{
+    color: #ff4444;
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+}}
+.station-card {{
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin: 8px 0;
+}}
+.station-name {{ font-weight: 700; color: #fff; font-size: 0.95rem; }}
+.station-dist {{ color: #ffaa00; font-size: 0.82rem; margin: 2px 0; }}
+.nav-link {{
+    display: inline-block;
+    background: #1a73e8;
+    color: #fff !important;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    text-decoration: none;
+    margin-top: 6px;
+}}
+.nav-link:hover {{ background: #1558b0; }}
+
+/* [NEW] Location status badge */
+.loc-badge {{
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+}}
+.loc-active {{ background: rgba(0,230,118,0.15); color: #00e676; border: 1px solid #00e676; }}
+.loc-inactive {{ background: rgba(122,136,153,0.15); color: {SUBTXT}; border: 1px solid {SUBTXT}; }}
+
 .stDataFrame {{ border-radius: 10px; overflow: hidden; }}
 [data-testid="stSlider"] .stSlider {{ accent-color: #4fc3f7; }}
-[data-testid="stSelectbox"] select {{ background: #1a2232; color: #e0e0e0; }}
 #MainMenu, footer, header {{ visibility: hidden; }}
 .block-container {{ padding-top: 1.5rem !important; }}
 </style>
@@ -306,7 +368,7 @@ KNOWN_COORDS = {
     "Powai": (19.1197, 72.9076),
     "Chandivali": (19.1168, 72.9016),
     "Hiranandani Gardens": (19.1172, 72.9062),
-    "Passpoli": (19.1192, 72.9048),
+    "Paaspoli": (19.1192, 72.9048),
     "Mhada Colony 19": (19.1185, 72.9040),
     "Morarji Nagar": (19.1180, 72.9032),
     "Chandshah Wali Dargah": (19.1195, 72.9052),
@@ -581,7 +643,70 @@ def get_coords(locality: str):
     )
 
 # ─────────────────────────────────────────────
-# SQLITE BACKEND
+# [NEW] POLICE STATIONS LOADER
+# ─────────────────────────────────────────────
+@st.cache_data
+def load_police_stations(csv_path: str = "police_stations.csv") -> pd.DataFrame:
+    """Load police stations CSV into memory (no DB)."""
+    if os.path.exists(csv_path):
+        df = pd.read_csv(csv_path)
+        # Ensure required columns
+        required = {"name", "lat", "lon"}
+        if required.issubset(set(df.columns)):
+            return df[["name", "lat", "lon"]].dropna().reset_index(drop=True)
+    # Fallback: minimal built-in stations if file missing
+    return pd.DataFrame({
+        "name": [
+            "Cuffe Parade Police Station",
+            "Yellow Gate Police Station",
+            "Nirmalnagar Police Station",
+            "Santacruz Police Station",
+            "Malvani Police Station",
+            "Andheri Police Station",
+            "Bandra Police Station",
+            "Borivali Police Station",
+            "Kurla Police Station",
+            "Chembur Police Station",
+        ],
+        "lat": [18.9155, 18.9475, 19.0596, 19.0786, 19.1915,
+                19.1136, 19.0544, 19.2290, 19.0728, 19.0622],
+        "lon": [72.8213, 72.8400, 72.8519, 72.8394, 72.8202,
+                72.8697, 72.8402, 72.8567, 72.8826, 72.9005],
+    })
+
+# ─────────────────────────────────────────────
+# [NEW] GEODESIC DISTANCE HELPER
+# ─────────────────────────────────────────────
+def haversine_km(lat1, lon1, lat2, lon2) -> float:
+    """Return distance in km between two lat/lon points."""
+    R = 6371.0
+    phi1, phi2 = radians(lat1), radians(lat2)
+    dphi = radians(lat2 - lat1)
+    dlam = radians(lon2 - lon1)
+    a = sin(dphi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(dlam / 2) ** 2
+    return R * 2 * atan2(sqrt(a), sqrt(1 - a))
+
+# ─────────────────────────────────────────────
+# [NEW] NEAREST STATIONS FINDER
+# ─────────────────────────────────────────────
+def nearest_stations(user_lat: float, user_lon: float,
+                     stations_df: pd.DataFrame, n: int = 3) -> pd.DataFrame:
+    """Return the n nearest police stations with distance column."""
+    df = stations_df.copy()
+    df["distance_km"] = df.apply(
+        lambda r: haversine_km(user_lat, user_lon, r["lat"], r["lon"]), axis=1
+    )
+    df["gmaps_link"] = df.apply(
+        lambda r: (
+            f"https://www.google.com/maps/dir/{user_lat},{user_lon}/"
+            f"{r['lat']},{r['lon']}"
+        ),
+        axis=1,
+    )
+    return df.nsmallest(n, "distance_km").reset_index(drop=True)
+
+# ─────────────────────────────────────────────
+# SQLITE BACKEND  (unchanged schema)
 # ─────────────────────────────────────────────
 DB_PATH = "safety_data.db"
 
@@ -684,6 +809,27 @@ def insert_from_df(df_new):
     conn.commit()
     conn.close()
 
+# [NEW] Incident reporting – bumps risk_index and crimes_women for matching locality
+def report_incident(locality: str, incident_type: str = "general"):
+    """Increase risk_index and crimes_women for a locality and return updated row."""
+    conn = sqlite3.connect(DB_PATH)
+    now = datetime.now().isoformat()
+    risk_bump = 2.0 if incident_type == "severe" else 1.0
+    conn.execute("""
+        UPDATE localities
+        SET risk_index    = risk_index + ?,
+            crimes_women  = crimes_women + 1,
+            total_crimes  = total_crimes + 1,
+            updated_at    = ?
+        WHERE locality = ?
+    """, (risk_bump, now, locality))
+    conn.commit()
+    updated = pd.read_sql(
+        "SELECT * FROM localities WHERE locality = ?", conn, params=(locality,)
+    )
+    conn.close()
+    return updated
+
 # ─────────────────────────────────────────────
 # RISK CLASSIFICATION
 # ─────────────────────────────────────────────
@@ -696,18 +842,26 @@ def classify(risk):
         return "low"
 
 # ─────────────────────────────────────────────
-# MAP BUILDER
-# CHANGE 1: CircleMarker block removed – heatmap fades only
+# MAP BUILDER  [MODIFIED: user marker + station markers in emergency mode]
 # ─────────────────────────────────────────────
-def build_map(df, show_high, show_med, show_low, selected_locality=None):
+def build_map(df, show_high, show_med, show_low,
+              selected_locality=None,
+              user_lat=None, user_lon=None,
+              emergency_stations=None):
     focus_lat, focus_lon, zoom = 19.076, 72.877, 11
 
-    if selected_locality and selected_locality != "— All —":
+    # Emergency mode → zoom to user
+    if emergency_stations is not None and user_lat and user_lon:
+        focus_lat, focus_lon, zoom = user_lat, user_lon, 14
+    elif selected_locality and selected_locality != "— All —":
         row = df[df["locality"] == selected_locality]
         if not row.empty:
             focus_lat = float(row.iloc[0]["lat"])
             focus_lon = float(row.iloc[0]["lon"])
             zoom = 15
+    elif user_lat and user_lon:
+        focus_lat, focus_lon = user_lat, user_lon
+        zoom = 13
 
     m = folium.Map(
         location=[focus_lat, focus_lon],
@@ -723,7 +877,6 @@ def build_map(df, show_high, show_med, show_low, selected_locality=None):
         return float((v - r_min) / (r_max - r_min + 1e-9))
 
     high_pts, med_pts, low_pts = [], [], []
-
     for _, row in df.iterrows():
         cat = classify(row["risk_index"])
         pt = [row["lat"], row["lon"], norm(row["risk_index"])]
@@ -734,36 +887,72 @@ def build_map(df, show_high, show_med, show_low, selected_locality=None):
         else:
             low_pts.append(pt)
 
-    heat_cfg = dict(
-        min_opacity=0.35,
-        max_zoom=16,
-        radius=28,
-        blur=22,
-    )
+    heat_cfg = dict(min_opacity=0.35, max_zoom=16, radius=28, blur=22)
 
     if show_high and high_pts:
-        HeatMap(
-            high_pts,
-            gradient={0.0: "#3d0000", 0.4: "#cc0000", 0.7: "#ff4444", 1.0: "#ff0000"},
-            name="🔴 High Risk",
-            **heat_cfg,
-        ).add_to(m)
-
+        HeatMap(high_pts,
+                gradient={0.0: "#3d0000", 0.4: "#cc0000", 0.7: "#ff4444", 1.0: "#ff0000"},
+                name="🔴 High Risk", **heat_cfg).add_to(m)
     if show_med and med_pts:
-        HeatMap(
-            med_pts,
-            gradient={0.0: "#2a1a00", 0.4: "#cc7700", 0.7: "#ffaa00", 1.0: "#ffcc00"},
-            name="🟡 Medium Risk",
-            **heat_cfg,
+        HeatMap(med_pts,
+                gradient={0.0: "#2a1a00", 0.4: "#cc7700", 0.7: "#ffaa00", 1.0: "#ffcc00"},
+                name="🟡 Medium Risk", **heat_cfg).add_to(m)
+    if show_low and low_pts:
+        HeatMap(low_pts,
+                gradient={0.0: "#001a00", 0.4: "#006600", 0.7: "#00cc44", 1.0: "#00ff66"},
+                name="🟢 Safe Zones", **heat_cfg).add_to(m)
+
+    # [NEW] User location marker
+    if user_lat and user_lon:
+        folium.CircleMarker(
+            location=[user_lat, user_lon],
+            radius=10,
+            color="#00bfff",
+            fill=True,
+            fill_color="#00bfff",
+            fill_opacity=0.9,
+            popup=folium.Popup("📍 Your Location", max_width=150),
+            tooltip="You are here",
+        ).add_to(m)
+        # Pulsing outer ring
+        folium.CircleMarker(
+            location=[user_lat, user_lon],
+            radius=22,
+            color="#00bfff",
+            fill=False,
+            weight=2,
+            opacity=0.5,
         ).add_to(m)
 
-    if show_low and low_pts:
-        HeatMap(
-            low_pts,
-            gradient={0.0: "#001a00", 0.4: "#006600", 0.7: "#00cc44", 1.0: "#00ff66"},
-            name="🟢 Safe Zones",
-            **heat_cfg,
-        ).add_to(m)
+    # [NEW] Nearest police station markers (emergency mode)
+    if emergency_stations is not None:
+        colors = ["#ff4444", "#ff8800", "#ffcc00"]
+        rank_labels = ["1st", "2nd", "3rd"]
+        for idx, (_, srow) in enumerate(emergency_stations.iterrows()):
+            folium.Marker(
+                location=[srow["lat"], srow["lon"]],
+                icon=folium.Icon(
+                    color="red" if idx == 0 else "orange" if idx == 1 else "beige",
+                    icon="shield",
+                    prefix="fa",
+                ),
+                popup=folium.Popup(
+                    f"<b>🚔 {srow['name']}</b><br>"
+                    f"Distance: {srow['distance_km']:.2f} km<br>"
+                    f"<a href='{srow['gmaps_link']}' target='_blank'>Navigate →</a>",
+                    max_width=250,
+                ),
+                tooltip=f"#{idx+1} {srow['name']} ({srow['distance_km']:.2f} km)",
+            ).add_to(m)
+            # Line from user to station
+            if user_lat and user_lon:
+                folium.PolyLine(
+                    locations=[[user_lat, user_lon], [srow["lat"], srow["lon"]]],
+                    color=colors[idx],
+                    weight=2,
+                    dash_array="6 4",
+                    opacity=0.8,
+                ).add_to(m)
 
     folium.LayerControl(collapsed=False).add_to(m)
     return m
@@ -781,9 +970,11 @@ conn_check.close()
 if count == 0:
     load_csv_to_db("data.csv")
 
+# [NEW] Load police stations into memory
+POLICE_DF = load_police_stations("police_stations.csv")
+
 # ─────────────────────────────────────────────
-# HEADER + DARK/LIGHT TOGGLE
-# CHANGE 2: toggle button placed top-right of title
+# HEADER + TOGGLE
 # ─────────────────────────────────────────────
 title_col, toggle_col = st.columns([5, 1])
 with title_col:
@@ -796,11 +987,132 @@ with toggle_col:
         st.rerun()
 
 # ─────────────────────────────────────────────
-# SIDEBAR
+# [NEW] GEOLOCATION COMPONENT (JS injection)
+# ─────────────────────────────────────────────
+geo_html = """
+<div id="geo-container" style="margin: 6px 0;">
+  <button id="geo-btn"
+    onclick="getLocation()"
+    style="
+      background: linear-gradient(135deg,#1a73e8,#0d47a1);
+      color: white; border: none; border-radius: 8px;
+      padding: 9px 18px; font-size: 0.88rem; font-weight: 600;
+      cursor: pointer; width: 100%;
+    ">
+    📍 Use My Location
+  </button>
+  <div id="geo-status" style="font-size:0.78rem;margin-top:5px;color:#7a8899;"></div>
+</div>
+
+<script>
+function getLocation() {
+  var btn = document.getElementById('geo-btn');
+  var status = document.getElementById('geo-status');
+  btn.textContent = "⏳ Getting location…";
+  btn.disabled = true;
+  status.textContent = "";
+
+  if (!navigator.geolocation) {
+    status.textContent = "❌ Geolocation not supported by this browser.";
+    btn.textContent = "📍 Use My Location";
+    btn.disabled = false;
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat = pos.coords.latitude;
+      var lon = pos.coords.longitude;
+      status.innerHTML = "✅ Location found: " + lat.toFixed(5) + ", " + lon.toFixed(5);
+      btn.textContent = "✅ Location Active";
+
+      // Send to Streamlit via query params trick: update URL then reload
+      var url = new URL(window.location.href);
+      url.searchParams.set("user_lat", lat);
+      url.searchParams.set("user_lon", lon);
+      window.location.href = url.toString();
+    },
+    function(err) {
+      var msgs = {1:"Permission denied",2:"Position unavailable",3:"Timeout"};
+      status.textContent = "⚠️ " + (msgs[err.code] || "Error") + ". Using dropdown instead.";
+      btn.textContent = "📍 Use My Location";
+      btn.disabled = false;
+    },
+    {enableHighAccuracy: true, timeout: 10000, maximumAge: 0}
+  );
+}
+</script>
+"""
+
+# ─────────────────────────────────────────────
+# [NEW] CAPTURE URL PARAMS FOR LAT/LON
+# Uses st.query_params (Streamlit ≥ 1.30)
+# ─────────────────────────────────────────────
+try:
+    qp = st.query_params
+    if "user_lat" in qp and "user_lon" in qp:
+        st.session_state.user_lat = float(qp["user_lat"])
+        st.session_state.user_lon = float(qp["user_lon"])
+        # Clear params to avoid re-setting on every rerun
+        st.query_params.clear()
+except Exception:
+    pass
+
+# ─────────────────────────────────────────────
+# SIDEBAR  [MODIFIED: added geo + emergency sections]
 # ─────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## ⚙️ Controls")
 
+    # ── [NEW] Location Section ──────────────────
+    st.markdown('<div class="section-hdr">📍 My Location</div>', unsafe_allow_html=True)
+
+    # Show location status badge
+    if st.session_state.user_lat:
+        st.markdown(
+            f'<span class="loc-badge loc-active">✅ Location active '
+            f'({st.session_state.user_lat:.4f}, {st.session_state.user_lon:.4f})</span>',
+            unsafe_allow_html=True,
+        )
+        if st.button("🗑️ Clear Location", use_container_width=True):
+            st.session_state.user_lat = None
+            st.session_state.user_lon = None
+            st.session_state.emergency_active = False
+            st.rerun()
+    else:
+        st.markdown(
+            '<span class="loc-badge loc-inactive">⚫ No location set</span>',
+            unsafe_allow_html=True,
+        )
+
+    # Geolocation button (JS)
+    st.components.v1.html(geo_html, height=90)
+
+    st.caption("Location denied? Enter manually:")
+    manual_lat = st.number_input("Latitude",  value=19.0760, format="%.4f", step=0.001,
+                                  label_visibility="collapsed")
+    manual_lon = st.number_input("Longitude", value=72.8777, format="%.4f", step=0.001,
+                                  label_visibility="collapsed")
+    if st.button("📌 Set Manual Location", use_container_width=True):
+        st.session_state.user_lat = manual_lat
+        st.session_state.user_lon = manual_lon
+        st.session_state.emergency_active = False
+        st.rerun()
+
+    # ── [NEW] Emergency Button ──────────────────
+    st.markdown('<div class="section-hdr">🚨 Emergency</div>', unsafe_allow_html=True)
+    emg_label = "🚨 EMERGENCY – Find Police NOW" if not st.session_state.emergency_active else "✅ Emergency Active – Click to Reset"
+    emg_color = "red" if not st.session_state.emergency_active else "primary"
+    if st.button(emg_label, use_container_width=True, type="primary"):
+        if st.session_state.user_lat:
+            st.session_state.emergency_active = not st.session_state.emergency_active
+        else:
+            st.warning("⚠️ Please set your location first!")
+        st.rerun()
+
+    st.markdown("---")
+
+    # ── Existing controls ───────────────────────
     st.markdown('<div class="section-hdr">Risk Threshold</div>', unsafe_allow_html=True)
     risk_range = st.slider(
         "Risk Index Range",
@@ -824,6 +1136,25 @@ with st.sidebar:
     df_all = fetch_all()
     locality_list = ["— All —"] + sorted(df_all["locality"].unique().tolist())
     selected_loc = st.selectbox("Select locality", locality_list, label_visibility="collapsed")
+
+    # ── [NEW] Incident Reporting ────────────────
+    st.markdown("---")
+    st.markdown('<div class="section-hdr">📣 Report Incident</div>', unsafe_allow_html=True)
+    report_locality = st.selectbox(
+        "Locality", sorted(df_all["locality"].unique().tolist()),
+        key="report_loc", label_visibility="collapsed"
+    )
+    incident_severity = st.radio(
+        "Severity", ["General", "Severe"],
+        horizontal=True, label_visibility="collapsed"
+    )
+    if st.button("📤 Submit Report", use_container_width=True):
+        updated = report_incident(report_locality, incident_severity.lower())
+        st.success(f"✅ Report submitted for **{report_locality}**.")
+        if not updated.empty:
+            new_risk = updated.iloc[0]["risk_index"]
+            st.info(f"New risk index: **{new_risk:.1f}**")
+        st.rerun()
 
     st.markdown("---")
     st.markdown('<div class="section-hdr">Upload New Data (CSV)</div>', unsafe_allow_html=True)
@@ -851,6 +1182,45 @@ df_filtered = df_all[
     (df_all["population_density"] >= density_range[0]) &
     (df_all["population_density"] <= density_range[1])
 ]
+
+# ─────────────────────────────────────────────
+# [NEW] COMPUTE NEAREST STATIONS (if applicable)
+# ─────────────────────────────────────────────
+nearby_stations = None
+if st.session_state.emergency_active and st.session_state.user_lat:
+    nearby_stations = nearest_stations(
+        st.session_state.user_lat,
+        st.session_state.user_lon,
+        POLICE_DF,
+        n=3
+    )
+
+# ─────────────────────────────────────────────
+# [NEW] EMERGENCY PANEL (above metrics)
+# ─────────────────────────────────────────────
+if st.session_state.emergency_active and nearby_stations is not None:
+    st.markdown("""
+    <div class="emergency-panel">
+      <div class="emergency-title">🚨 EMERGENCY MODE ACTIVE — Nearest Police Stations</div>
+    """, unsafe_allow_html=True)
+
+    cards_html = ""
+    rank_emojis = ["🥇", "🥈", "🥉"]
+    for i, (_, row) in enumerate(nearby_stations.iterrows()):
+        dist_text = f"{row['distance_km']:.2f} km away"
+        cards_html += f"""
+        <div class="station-card">
+          <div class="station-name">{rank_emojis[i]} {row['name']}</div>
+          <div class="station-dist">📏 {dist_text}</div>
+          <a class="nav-link" href="{row['gmaps_link']}" target="_blank">
+            🗺️ Navigate via Google Maps
+          </a>
+        </div>
+        """
+    st.markdown(cards_html + "</div>", unsafe_allow_html=True)
+
+    # Emergency helpline reminder
+    st.error("📞 **Police Helpline: 100** | Women Helpline: **1091** | Emergency: **112**")
 
 # ─────────────────────────────────────────────
 # METRIC CARDS
@@ -887,7 +1257,6 @@ st.markdown(f"""
 
 # ─────────────────────────────────────────────
 # MAP (left) | TABLE (right)
-# CHANGE 3: bottom legend box removed entirely
 # ─────────────────────────────────────────────
 col_map, col_data = st.columns([2.6, 1], gap="medium")
 
@@ -895,11 +1264,32 @@ with col_map:
     if df_filtered.empty:
         st.warning("No localities match the current filters.")
     else:
-        m = build_map(df_filtered, show_high, show_med, show_low, selected_loc)
+        m = build_map(
+            df_filtered,
+            show_high, show_med, show_low,
+            selected_loc,
+            user_lat=st.session_state.user_lat,
+            user_lon=st.session_state.user_lon,
+            emergency_stations=nearby_stations,
+        )
         st_folium(m, width=None, height=580, returned_objects=[])
-    # Legend removed — LayerControl on the map itself acts as legend
 
 with col_data:
+    # [NEW] Nearest stations mini-table when location is set (non-emergency)
+    if st.session_state.user_lat and not st.session_state.emergency_active:
+        st.markdown('<div class="section-hdr">🚔 Nearest Police Stations</div>', unsafe_allow_html=True)
+        ns = nearest_stations(
+            st.session_state.user_lat, st.session_state.user_lon, POLICE_DF, n=3
+        )
+        for _, r in ns.iterrows():
+            st.markdown(
+                f"**{r['name']}**  \n"
+                f"📏 {r['distance_km']:.2f} km · "
+                f"[Navigate]({r['gmaps_link']})",
+                unsafe_allow_html=False
+            )
+        st.markdown("---")
+
     st.markdown('<div class="section-hdr">Top 25 Riskiest Localities</div>', unsafe_allow_html=True)
     top25 = df_filtered.nlargest(25, "risk_index")[
         ["locality", "risk_index", "crimes_women", "police_density", "total_crimes"]
@@ -922,7 +1312,7 @@ with col_data:
         top25.style.applymap(color_risk, subset=["Risk"])
             .format({"Risk": "{:.1f}", "Police/km²": "{:.2f}"}),
         use_container_width=True,
-        height=520,
+        height=480,
     )
 
 # ─────────────────────────────────────────────
